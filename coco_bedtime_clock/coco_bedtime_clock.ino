@@ -18,8 +18,8 @@ LED matrix pictures and animations can be built at: https://ledmatrix-editor.ard
 #include "screen_night.h"
 #include "screen_day.h"
 #include "wifi_info.h"
-char ssid[] = SECRET_SSID; // your network SSID (name)
-char pass[] = SECRET_PASS; // your network password (use for WPA, or use as key for WEP)
+char ssid[] = SECRET_SSID; // from "wifi_info.h"
+char pass[] = SECRET_PASS; // from "wifi_info.h"
 
 WiFiUDP Udp; // A UDP instance to let us send and receive packets over UDP
 NTPClient NtpClient(Udp);
