@@ -9,7 +9,7 @@ LED matrix pictures and animations can be built at: https://ledmatrix-editor.ard
 */
 
 // log output level
-#define DEBUG_COCO 2 // debug => 2,
+#define DEBUG_COCO 1 // debug => 2,
                      // info => 1,
                      // error & init => 0 (or unset)
 
@@ -96,7 +96,7 @@ bool setRtcFromNtp() {
 void getCurrentTime(RTCTime& currentTime) {
   RTC.getTime(currentTime);
 
-  // raw RTC time
+  // raw RTC date-time
   if (DEBUG_COCO >= 2) Serial.print(currentTime.getUnixTime());
   if (DEBUG_COCO >= 2) Serial.println(" / "+ String(currentTime));
 
@@ -106,16 +106,15 @@ void getCurrentTime(RTCTime& currentTime) {
   currentTime.setYear(1970);
   //currentTime.setSaveLight(SaveLight::SAVING_TIME_INACTIVE);
 
-  // minimal RTC time
+  // minimal RTC time (without date)
   if (DEBUG_COCO >= 2) Serial.print(currentTime.getUnixTime());
   if (DEBUG_COCO >= 2) Serial.println(" / "+ String(currentTime));
 }
 
 
-uint8_t currentDayOfWeek(RTCTime& currentTime) {
-  //RTC.getTime(currentTime);
+uint8_t currentDayOfWeek(RTCTime currentTime) {
   if (DEBUG_COCO >= 2) Serial.print("Day of week: ");
-  if (DEBUG_COCO >= 2) Serial.println((uint8_t)currentTime.getDayOfWeek());
+  if (DEBUG_COCO >= 2) Serial.println((uint8_t)currentTime.getDayOfWeek()); // we don't use getDayOfWeek() but that's on purpose
   return (uint8_t)currentTime.getDayOfWeek(); // we don't use getDayOfWeek() but that's on purpose
 }
 
