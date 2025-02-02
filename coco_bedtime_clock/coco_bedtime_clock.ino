@@ -13,6 +13,8 @@ LED matrix pictures and animations can be built at: https://ledmatrix-editor.ard
                      // info => 1,
                      // error & init => 0 (or unset)
 
+#define NTP_MAX_CONN_ATTEMPT 3
+
 #include <WiFiS3.h>
 #include <WiFiUdp.h>
 #include <NTPClient.h> // needs the NTPClient library to be installed
@@ -60,14 +62,14 @@ void printWifiStatus() {
 bool setRtcFromNtp() {
   bool ntp_time_ok = false;
   bool rtc_time_ok = false;
+  unsigned int ntp_conn_attempts = 0;
 
-  if (DEBUG_COCO >= 1) Serial.println("[NTP ] Getting time from NTP...");
-  
-  delay(1000); // TODO: remove this!
   NtpClient.begin(); // starts the underlying UDP client with the default local port
-  delay(1000); // TODO: remove this!
-  ntp_time_ok = NtpClient.forceUpdate(); // has in internal timeout of 1000ms
-  // TODO: retry?
+  do {
+    if (DEBUG_COCO >= 1) Serial.println("[NTP ] Getting time from NTP...");
+    ntp_time_ok = NtpClient.forceUpdate(); // has an internal timeout of 1000ms
+  } while (!ntp_time_ok && ++ntp_conn_attempts < NTP_MAX_CONN_ATTEMPT);
+
   if (ntp_time_ok) {
     auto timezone_offset_hours = 0;
     auto unix_time = 0;
@@ -191,6 +193,9 @@ void loop() {
       if (DEBUG_COCO >= 1) Serial.println("[WIFI] Successfully connected to WiFi");
       if (DEBUG_COCO >= 2) printWifiStatus();
       setRtcFromNtp(); // TODO: error handling
+    }
+    else {
+      Serial.println("*ERROR* Can't connect to WiFi!");
     }
     if (DEBUG_COCO >= 1) Serial.println("[WIFI] Turning WiFi Off.");
     WiFi.end(); // we don't need to stay connected
