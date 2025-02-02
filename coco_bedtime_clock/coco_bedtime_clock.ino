@@ -21,7 +21,7 @@ LED matrix pictures and animations can be built at: https://ledmatrix-editor.ard
 #include "RTC.h"
 #include "Arduino_LED_Matrix.h" // LED_Matrix library
 
-//#include "clock_agenda.h"
+#include "clock_agenda.h"
 #include "screen_night.h"
 #include "screen_day.h"
 #include "wifi_info.h"
@@ -93,6 +93,45 @@ bool setRtcFromNtp() {
 }
 
 
+void getCurrentTime(RTCTime& currentTime) {
+  RTC.getTime(currentTime);
+
+  // raw RTC time
+  if (DEBUG_COCO >= 2) Serial.print(currentTime.getUnixTime());
+  if (DEBUG_COCO >= 2) Serial.println(" / "+ String(currentTime));
+
+  // drop the day/month/year parts from the current date-time to only keep the time
+  currentTime.setDayOfMonth(1);
+  currentTime.setMonthOfYear(Month::JANUARY);
+  currentTime.setYear(1970);
+  //currentTime.setSaveLight(SaveLight::SAVING_TIME_INACTIVE);
+
+  // minimal RTC time
+  if (DEBUG_COCO >= 2) Serial.print(currentTime.getUnixTime());
+  if (DEBUG_COCO >= 2) Serial.println(" / "+ String(currentTime));
+}
+
+
+uint8_t currentDayOfWeek(RTCTime& currentTime) {
+  //RTC.getTime(currentTime);
+  if (DEBUG_COCO >= 2) Serial.print("Day of week: ");
+  if (DEBUG_COCO >= 2) Serial.println((uint8_t)currentTime.getDayOfWeek());
+  return (uint8_t)currentTime.getDayOfWeek(); // we don't use getDayOfWeek() but that's on purpose
+}
+
+
+bool isDayUp(RTCTime current, RTCTime wakeup, RTCTime gosleep) {
+  // check if current time is between wake-up time and go-to-sleep time
+  if (DEBUG_COCO >= 2) Serial.print(wakeup.getUnixTime());
+  if (DEBUG_COCO >= 2) Serial.println(" / "+ String(wakeup));
+  if (DEBUG_COCO >= 2) Serial.print(gosleep.getUnixTime());
+  if (DEBUG_COCO >= 2) Serial.println(" / "+ String(gosleep));
+  if (DEBUG_COCO >= 2) Serial.print("Is day up? ");
+  if (DEBUG_COCO >= 2) Serial.println( wakeup.getUnixTime() <= current.getUnixTime() && current.getUnixTime() < gosleep.getUnixTime() );
+  return (wakeup.getUnixTime() <= current.getUnixTime() && current.getUnixTime() < gosleep.getUnixTime());
+}
+
+
 //========
 
 
@@ -128,7 +167,7 @@ void setup() {
   }
   Serial.println("[INIT] Real-time Clock OK");
   
-  if (!RTC.isRunning()) {
+  if (!RTC.isRunning() || DEBUG_COCO >= 2) {
     LedMatrix.loadSequence(LEDMATRIX_ANIMATION_WIFI_SEARCH); // https://docs.arduino.cc/tutorials/uno-r4-wifi/led-matrix/#frame-gallery
     LedMatrix.play(true);
 
@@ -176,11 +215,12 @@ void setup() {
 
 void loop() {
   static bool is_day_set = false;
-  static bool is_day_up = false;
+  static bool is_day_up_prev = false;
 
+  bool is_day_up;
+  unsigned int day_of_week;
   RTCTime CurrentTime;
-  RTCTime wakeup (1, Month::JANUARY, 1970, 05, 45, 0, DayOfWeek::MONDAY, SaveLight::SAVING_TIME_INACTIVE);
-  RTCTime gosleep(1, Month::JANUARY, 1970, 19, 15, 0, DayOfWeek::MONDAY, SaveLight::SAVING_TIME_INACTIVE);
+  RTCTime wakeup, gosleep;
 
   // clock re-sync routine
   if (flag_update) {
@@ -202,35 +242,27 @@ void loop() {
     digitalWrite(LED_BUILTIN, LOW);
   }
 
-  // time comparison
   if (DEBUG_COCO >= 2) Serial.println("---");
-  RTC.getTime(CurrentTime);
-  //if (DEBUG_COCO >= 2) Serial.println(DayOfWeek2int(CurrentTime.getDayOfWeek(), false));
-  if (DEBUG_COCO >= 2) Serial.print(CurrentTime.getUnixTime());
-  if (DEBUG_COCO >= 2) Serial.println(" / "+ String(CurrentTime));
-  CurrentTime.setDayOfMonth(1);
-  CurrentTime.setMonthOfYear(Month::JANUARY);
-  CurrentTime.setYear(1970);
-  if (DEBUG_COCO >= 2) Serial.print(CurrentTime.getUnixTime());
-  if (DEBUG_COCO >= 2) Serial.println(" / "+ String(CurrentTime));
-
-  if (DEBUG_COCO >= 2) Serial.print(wakeup.getUnixTime());
-  if (DEBUG_COCO >= 2) Serial.println(" / "+ String(wakeup));
-  if (DEBUG_COCO >= 2) Serial.print(gosleep.getUnixTime());
-  if (DEBUG_COCO >= 2) Serial.println(" / "+ String(gosleep));
   
-  if ((!is_day_set || is_day_up) && (CurrentTime.getUnixTime() < wakeup.getUnixTime() || CurrentTime.getUnixTime() >= gosleep.getUnixTime())) {
+  getCurrentTime(CurrentTime);
+  day_of_week = currentDayOfWeek(CurrentTime);
+  wakeup = clock_agenda[day_of_week][0];
+  gosleep = clock_agenda[day_of_week][1];
+  
+  // time comparison
+  is_day_up = isDayUp(CurrentTime, wakeup, gosleep);
+  if ((!is_day_set || is_day_up_prev) && !is_day_up) {
     // day -> night transition
     is_day_set = true;
-    is_day_up = false;
+    is_day_up_prev = false;
     if (DEBUG_COCO >= 1) Serial.println("It's time to sleep");
     LedMatrix.loadSequence(anim_asleep);
     LedMatrix.play(true);
   }
-  else if ((!is_day_set || !is_day_up) && (wakeup.getUnixTime() <= CurrentTime.getUnixTime() && CurrentTime.getUnixTime() < gosleep.getUnixTime())) {
+  else if ((!is_day_set || !is_day_up_prev) && is_day_up) {
     // night -> day transition
     is_day_set = true;
-    is_day_up = true;
+    is_day_up_prev = true;
     if (DEBUG_COCO >= 1) Serial.println("It's time to wake up");
     LedMatrix.loadSequence(anim_awake);
     LedMatrix.play(true);
